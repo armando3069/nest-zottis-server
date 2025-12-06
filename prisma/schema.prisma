@@ -1,0 +1,62 @@
+datasource db {
+  provider = "postgresql"
+    url      = env("DATABASE_URL")
+
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model users {
+  id           Int                @id @default(autoincrement())
+  email        String             @unique
+  password_hash String
+  name         String?
+  created_at   DateTime           @default(now())
+
+  platform_accounts platform_accounts[]
+}
+
+model platform_accounts {
+  id             Int               @id @default(autoincrement())
+  user_id        Int
+  platform       String
+  access_token   String
+  external_app_id String?
+  settings       Json?
+  created_at     DateTime          @default(now())
+
+  user           users             @relation(fields: [user_id], references: [id])
+  conversations  conversations[]
+}
+
+model conversations {
+  id                   Int                 @id @default(autoincrement())
+  platform_account_id  Int?
+  external_chat_id     String
+  contact_name         String?
+  contact_username     String?
+  contact_avatar       String?
+  platform             String
+  created_at           DateTime            @default(now())
+
+  platform_account     platform_accounts?  @relation(fields: [platform_account_id], references: [id])
+  messages             messages[]
+
+  @@unique([external_chat_id, platform])
+}
+
+model messages {
+  id                 Int        @id @default(autoincrement())
+  conversation_id    Int?
+  sender_type        String
+  external_message_id String?
+  text               String?
+  attachments        Json?
+  platform           String
+  timestamp          DateTime?
+  created_at         DateTime   @default(now())
+
+  conversation       conversations? @relation(fields: [conversation_id], references: [id])
+}
