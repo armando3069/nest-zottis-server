@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import TelegramBot from 'node-telegram-bot-api';
 import { PrismaService } from '../prisma/prisma.service';
 import { AggregatorService } from '../aggregator/aggregator.service';
+import { ChatGateway } from '../chat/chat.gateway';
 
 @Injectable()
 export class TelegramService {
@@ -11,6 +12,8 @@ export class TelegramService {
   constructor(
     private prisma: PrismaService,
     private aggregator: AggregatorService,
+    @Inject(forwardRef(() => ChatGateway))
+    private chatGateway: ChatGateway,
   ) {
     this.bot = new TelegramBot(process.env.TELEGRAM_TOKEN, {
       polling: true,
@@ -26,21 +29,24 @@ export class TelegramService {
 
       this.logger.log(`Received from Telegram(${chatId}): ${text}`);
 
-      // 1️⃣ trimitem către aggregator să salveze conversația și mesajul
-      await this.aggregator.processIncomingMessage('telegram', chatId, {
-        text,
-        contactName: msg.from?.first_name || null,
-        contactUsername: msg.from?.username || null,
-        timestamp: new Date(msg.date * 1000),
-      });
+      const { conversation, message, isNew } =
+        await this.aggregator.processIncomingMessage('telegram', chatId, {
+          text,
+          contactName: msg.from?.first_name || null,
+          contactUsername: msg.from?.username || null,
+          timestamp: new Date(msg.date * 1000),
+        });
+
+      this.chatGateway.emitNewMessage(message);
+
+      if (isNew) {
+        this.chatGateway.emitNewConversation(conversation);
+      }
     } catch (err) {
       this.logger.error('Telegram Service Error:', err);
     }
   }
 
-  // ======================================================================================
-  // 🚀 2️⃣ Funcție pentru a răspunde manual
-  // ======================================================================================
   async sendManualReply(chatId: string, text: string) {
     await this.bot.sendMessage(chatId, text);
   }

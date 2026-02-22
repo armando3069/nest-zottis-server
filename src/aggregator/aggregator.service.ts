@@ -22,6 +22,15 @@ export class AggregatorService {
     }
 
     // 2️⃣ găsim sau creăm conversația
+    const existing = await this.prisma.conversations.findUnique({
+      where: {
+        external_chat_id_platform: {
+          external_chat_id: chatId,
+          platform,
+        },
+      },
+    });
+
     const conversation = await this.prisma.conversations.upsert({
       where: {
         external_chat_id_platform: {
@@ -39,8 +48,10 @@ export class AggregatorService {
       },
     });
 
+    const isNew = !existing;
+
     // 3️⃣ salvăm mesajul
-    await this.prisma.messages.create({
+    const message = await this.prisma.messages.create({
       data: {
         conversation_id: conversation.id,
         sender_type: 'client',
@@ -50,6 +61,6 @@ export class AggregatorService {
       },
     });
 
-    return conversation;
+    return { conversation, message, isNew };
   }
 }
